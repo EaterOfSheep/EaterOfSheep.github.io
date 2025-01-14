@@ -1,1 +1,87 @@
-<h1>Hello World</h1>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YouTube Feed Viewer</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      line-height: 1.6;
+      margin: 20px;
+    }
+    .video-entry {
+      margin-bottom: 20px;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+    .video-entry h3 {
+      margin: 0;
+      font-size: 18px;
+    }
+    .video-entry a {
+      color: #007BFF;
+      text-decoration: none;
+    }
+    .video-entry a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <h1>YouTube Channel Feed</h1>
+  <div id="feed-container">
+    <p>Loading feed...</p>
+  </div>
+
+  <script>
+    async function fetchAndDisplayYouTubeFeed() {
+      const feedUrl = 'https://www.youtube.com/feeds/videos.xml?channel_id=UCfUf_zEzGsEJvQt-CZt-dOA';
+      const feedContainer = document.getElementById('feed-container');
+
+      try {
+        // Fetch the feed
+        const response = await fetch(feedUrl);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch feed: ${response.statusText}`);
+        }
+
+        // Parse the XML response
+        const text = await response.text();
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(text, 'text/xml');
+
+        // Clear loading message
+        feedContainer.innerHTML = '';
+
+        // Extract entries and display them
+        const entries = xmlDoc.querySelectorAll('entry');
+        entries.forEach((entry) => {
+          const title = entry.querySelector('title')?.textContent;
+          const link = entry.querySelector('link')?.getAttribute('href');
+          const published = entry.querySelector('published')?.textContent;
+
+          // Create entry element
+          const videoElement = document.createElement('div');
+          videoElement.classList.add('video-entry');
+          videoElement.innerHTML = `
+            <h3>${title}</h3>
+            <p><strong>Published:</strong> ${new Date(published).toLocaleString()}</p>
+            <p><a href="${link}" target="_blank">Watch on YouTube</a></p>
+          `;
+          feedContainer.appendChild(videoElement);
+        });
+
+        if (entries.length === 0) {
+          feedContainer.innerHTML = '<p>No videos found.</p>';
+        }
+      } catch (error) {
+        feedContainer.innerHTML = `<p>Error: ${error.message}</p>`;
+      }
+    }
+
+    fetchAndDisplayYouTubeFeed();
+  </script>
+</body>
+</html>
