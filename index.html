@@ -1,87 +1,97 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>YouTube Feed Viewer</title>
+  <title>Google Spreadsheet Viewer</title>
   <style>
     body {
       font-family: Arial, sans-serif;
-      line-height: 1.6;
       margin: 20px;
     }
-    .video-entry {
-      margin-bottom: 20px;
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 20px;
+    }
+    table, th, td {
+      border: 1px solid #ddd;
+    }
+    th, td {
       padding: 10px;
-      border: 1px solid #ccc;
-      border-radius: 5px;
+      text-align: left;
     }
-    .video-entry h3 {
-      margin: 0;
-      font-size: 18px;
-    }
-    .video-entry a {
-      color: #007BFF;
-      text-decoration: none;
-    }
-    .video-entry a:hover {
-      text-decoration: underline;
+    th {
+      background-color: #f4f4f4;
     }
   </style>
 </head>
 <body>
-  <h1>YouTube Channel Feed</h1>
-  <div id="feed-container">
-    <p>Loading feed...</p>
-  </div>
+  <h1>Google Spreadsheet Viewer</h1>
+  <p>The table below displays the contents of the public Google Spreadsheet:</p>
+  <table id="spreadsheet-table">
+    <thead>
+      <tr id="table-header"></tr>
+    </thead>
+    <tbody id="table-body"></tbody>
+  </table>
 
   <script>
-    async function fetchAndDisplayYouTubeFeed() {
-      const feedUrl = 'https://www.youtube.com/feeds/videos.xml?channel_id=UCfUf_zEzGsEJvQt-CZt-dOA';
-      const feedContainer = document.getElementById('feed-container');
+    // Provided Spreadsheet ID
+    const SPREADSHEET_ID = "1XEv_eHL-_VE5p8wCmtE_k_nSL4D0wo5cm9uA6VsSvyE";
+    // Replace with the desired sheet name (tab name in the spreadsheet)
+    const SHEET_NAME = "Sheet1";
+
+    async function fetchSpreadsheetData() {
+      const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${SHEET_NAME}`;
 
       try {
-        // Fetch the feed
-        const response = await fetch(feedUrl);
+        const response = await fetch(url);
         if (!response.ok) {
-          throw new Error(`Failed to fetch feed: ${response.statusText}`);
+          throw new Error(`HTTP error! status: ${response.status}`);
         }
 
-        // Parse the XML response
-        const text = await response.text();
-        const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(text, 'text/xml');
-
-        // Clear loading message
-        feedContainer.innerHTML = '';
-
-        // Extract entries and display them
-        const entries = xmlDoc.querySelectorAll('entry');
-        entries.forEach((entry) => {
-          const title = entry.querySelector('title')?.textContent;
-          const link = entry.querySelector('link')?.getAttribute('href');
-          const published = entry.querySelector('published')?.textContent;
-
-          // Create entry element
-          const videoElement = document.createElement('div');
-          videoElement.classList.add('video-entry');
-          videoElement.innerHTML = `
-            <h3>${title}</h3>
-            <p><strong>Published:</strong> ${new Date(published).toLocaleString()}</p>
-            <p><a href="${link}" target="_blank">Watch on YouTube</a></p>
-          `;
-          feedContainer.appendChild(videoElement);
-        });
-
-        if (entries.length === 0) {
-          feedContainer.innerHTML = '<p>No videos found.</p>';
-        }
+        const csvText = await response.text();
+        displaySpreadsheetData(csvText);
       } catch (error) {
-        feedContainer.innerHTML = `<p>Error: ${error.message}</p>`;
+        console.error("Error fetching spreadsheet data:", error);
+        alert("Could not fetch spreadsheet data. Ensure the spreadsheet is published and accessible.");
       }
     }
 
-    fetchAndDisplayYouTubeFeed();
+    function displaySpreadsheetData(csvText) {
+      const rows = csvText.split("\n").map(row => row.split(","));
+      const headerRow = rows[0];
+      const dataRows = rows.slice(1);
+
+      // Populate the table header
+      const tableHeader = document.getElementById("table-header");
+      tableHeader.innerHTML = "";
+      headerRow.forEach(header => {
+        const th = document.createElement("th");
+        th.textContent = header.trim();
+        tableHeader.appendChild(th);
+      });
+
+      // Populate the table body
+      const tableBody = document.getElementById("table-body");
+      tableBody.innerHTML = "";
+      dataRows.forEach(row => {
+        if (row.length > 1) { // Avoid empty rows
+          const tr = document.createElement("tr");
+          row.forEach(cell => {
+            const td = document.createElement("td");
+            td.textContent = cell.trim();
+            tr.appendChild(td);
+          });
+          tableBody.appendChild(tr);
+        }
+      });
+    }
+
+    // Fetch and display the spreadsheet data when the page loads
+    fetchSpreadsheetData();
   </script>
 </body>
 </html>
