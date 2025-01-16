@@ -2,143 +2,39 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+
+<link rel="stylesheet" href="style.css">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Google Spreadsheet Viewer</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 20px;
-    }
-    table {
-      border-collapse: collapse;
-      width: 100%;
-      margin-top: 20px;
-    }
-    table, th, td {
-      border: 1px solid #ddd;
-    }
-    th, td {
-      padding: 10px;
-      text-align: left;
-    }
-    th {
-      background-color: #f4f4f4;
-    }
-  </style>
+  <title>Extratone XYZ</title>
+
+	<script src="newsfeed.js"></script>
+	<script src="friends.js"></script>
+	<script src="links.js"></script>
+
+
 </head>
 <body>
-  <h1>Extratone XYZ</h1>
-  <p>Official website of Extratone Regeneration</p>
+
+	<img class = "titleimg" src="xtrtn.webp"></img>
+  <h1>Welcome to Extratone XYZ</h1>
+  <p>This is the official website of Extratone Regeneration.</p>
+  <p>This website dedicated to the fastest style of music possible, Extratone.</p>
+
+  <h2>Links</h2>
+  <div id="links">
+  </div>
+
+  <h3>Friends</h3>
+  <div id="friends">
+
+  </div>
+
+<h2>Updates</h2>
+
   <div id="posts">
 
   </div>
 
-  <script>
-    // Provided Spreadsheet ID
-    const SPREADSHEET_ID = "2PACX-1vQB52mmeonPezNUiyChzgpyPtelUaZ6CHAxo43TTkkgEtL-esg5FC8sO0XG7m7a-Rxx18fpJTeDjH1C";
-
-    // Replace with the desired sheet name (tab name in the spreadsheet)
-    const SHEET_NAME = "Sheet1";
-
-    async function fetchSpreadsheetData() {
-//      const url = `https://docs.google.com/spreadsheets/d/e/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${SHEET_NAME}`;
-
-
-	    const url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQB52mmeonPezNUiyChzgpyPtelUaZ6CHAxo43TTkkgEtL-esg5FC8sO0XG7m7a-Rxx18fpJTeDjH1C/pub?gid=0&single=true&output=csv"
-
-	    console.log(url)
-
-      try {
-        const response = await fetch(url);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const csvText = await response.text();
-        displaySpreadsheetData(csvText);
-      } catch (error) {
-        console.error("Error fetching spreadsheet data:", error);
-        alert("Could not fetch spreadsheet data. Ensure the spreadsheet is published and accessible.");
-      }
-    }
-
-
-
-function displaySpreadsheetData(csvText) {
-  const rows = csvText.split("\n").map(row => row.split(","));
-  const headerRow = rows[0];
-  const dataRows = rows.slice(1);
-
-  // Populate the posts container
-  const postsDiv = document.getElementById("posts");
-  postsDiv.innerHTML = "";
-
-  dataRows.forEach(row => {
-    if (row.length > 1) { // Avoid empty rows
-      const post = document.createElement("div");
-      post.style.border = "1px solid #ccc";
-      post.style.padding = "15px";
-      post.style.margin = "10px 0";
-      post.style.borderRadius = "8px";
-      post.style.boxShadow = "0 2px 5px rgba(0, 0, 0, 0.1)";
-      post.style.backgroundColor = "#f9f9f9";
-
-      const [title, message, url, author, datePosted, category] = row.map(cell => cell.trim());
-
-      // Create and append elements for each field
-      const titleElement = document.createElement("h3");
-      titleElement.textContent = title;
-      titleElement.style.marginBottom = "8px";
-      post.appendChild(titleElement);
-
-      const messageElement = document.createElement("p");
-      messageElement.textContent = message;
-      messageElement.style.marginBottom = "8px";
-      post.appendChild(messageElement);
-
-      // Check if the URL is a YouTube link
-      if (url.includes("youtube.com/watch") || url.includes("youtu.be")) {
-        const videoId = url.includes("youtube.com/watch")
-          ? new URL(url).searchParams.get("v")
-          : url.split("/").pop();
-
-        if (videoId) {
-          const iframe = document.createElement("iframe");
-          iframe.src = `https://www.youtube.com/embed/${videoId}`;
-          iframe.width = "100%";
-          iframe.height = "315";
-          iframe.style.border = "none";
-          iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
-          iframe.allowFullscreen = true;
-          post.appendChild(iframe);
-        }
-      } else {
-        const urlElement = document.createElement("a");
-        urlElement.href = url;
-        urlElement.textContent = "Read more";
-        urlElement.style.display = "block";
-        urlElement.style.marginBottom = "8px";
-        urlElement.style.color = "#007BFF";
-        urlElement.style.textDecoration = "none";
-        urlElement.addEventListener("mouseover", () => (urlElement.style.textDecoration = "underline"));
-        urlElement.addEventListener("mouseout", () => (urlElement.style.textDecoration = "none"));
-        post.appendChild(urlElement);
-      }
-
-      const metaInfo = document.createElement("div");
-      metaInfo.style.fontSize = "0.9em";
-      metaInfo.style.color = "#666";
-      metaInfo.textContent = `Posted by ${author} on ${datePosted} | Category: ${category}`;
-      post.appendChild(metaInfo);
-
-      postsDiv.appendChild(post);
-    }
-  });
-}
-
-    // Fetch and display the spreadsheet data when the page loads
-    fetchSpreadsheetData();
-  </script>
 </body>
 </html>
