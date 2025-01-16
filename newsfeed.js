@@ -129,7 +129,7 @@
 function displaySpreadsheetData(csvText) {
   const rows = csvText.split("\n").map(row => row.split(","));
   const headerRow = rows[0];
-  const dataRows = rows.slice(1);
+  const dataRows = rows.slice(1).reverse();
 
   // Populate the posts container
   const postsDiv = document.getElementById("posts");
