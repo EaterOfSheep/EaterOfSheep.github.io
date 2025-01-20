@@ -126,8 +126,10 @@
 	}
 
 
+
 function displaySpreadsheetData(csvText) {
-  const rows = csvText.split("\n").map(row => row.split(","));
+  // Parse the CSV text into rows and columns
+  const rows = parseCSV(csvText);
   const headerRow = rows[0];
   const dataRows = rows.slice(1).reverse();
 
@@ -137,10 +139,53 @@ function displaySpreadsheetData(csvText) {
 
   dataRows.forEach(row => {
     if (row.length > 1) { // Avoid empty rows
-	    displayPost(row)
+      displayPost(row);
     }
   });
 }
+
+function parseCSV(csvText) {
+  const rows = [];
+  let currentRow = [];
+  let currentValue = '';
+  let insideQuotes = false;
+
+  for (let i = 0; i < csvText.length; i++) {
+    const char = csvText[i];
+    const nextChar = csvText[i + 1];
+
+    if (char === '"' && insideQuotes && nextChar === '"') {
+      // Handle escaped quotes inside a quoted value
+      currentValue += '"';
+      i++; // Skip the next quote
+    } else if (char === '"') {
+      // Toggle the insideQuotes state
+      insideQuotes = !insideQuotes;
+    } else if (char === ',' && !insideQuotes) {
+      // End of a value
+      currentRow.push(currentValue);
+      currentValue = '';
+    } else if (char === '\n' && !insideQuotes) {
+      // End of a row
+      currentRow.push(currentValue);
+      rows.push(currentRow);
+      currentRow = [];
+      currentValue = '';
+    } else {
+      // Append the character to the current value
+      currentValue += char;
+    }
+  }
+
+  // Push the last value and row if necessary
+  if (currentValue || currentRow.length > 0) {
+    currentRow.push(currentValue);
+    rows.push(currentRow);
+  }
+
+  return rows;
+}
+
 
     // Fetch and display the spreadsheet data when the page loads
     fetchSpreadsheetData();
