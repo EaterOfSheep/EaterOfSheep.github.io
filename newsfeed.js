@@ -151,29 +151,25 @@ function parseCSV(csvText) {
   let insideQuotes = false;
 
   for (let i = 0; i < csvText.length; i++) {
-    const char = csvText[i];
+    const character = csvText[i];
     const nextChar = csvText[i + 1];
 
-    if (char === '"' && insideQuotes && nextChar === '"') {
-      // Handle escaped quotes inside a quoted value
+    if (character === '"' && insideQuotes && nextChar === '"') {
+	    //escaped quotes
       currentValue += '"';
-      i++; // Skip the next quote
-    } else if (char === '"') {
-      // Toggle the insideQuotes state
+      i++;
+    } else if (character === '"') {
       insideQuotes = !insideQuotes;
-    } else if (char === ',' && !insideQuotes) {
-      // End of a value
+    } else if (character === ',' && !insideQuotes) {
       currentRow.push(currentValue);
       currentValue = '';
-    } else if (char === '\n' && !insideQuotes) {
-      // End of a row
+    } else if (character === '\n' && !insideQuotes) {
       currentRow.push(currentValue);
       rows.push(currentRow);
       currentRow = [];
       currentValue = '';
     } else {
-      // Append the character to the current value
-      currentValue += char;
+      currentValue += character;
     }
   }
 
