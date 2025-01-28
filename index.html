@@ -1,41 +1,27 @@
+import Image from "next/image";
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
+export default function Home() {
+  return (
+    <div>
+      <img className="titleimg" src="/pix/xtrtn.webp" alt="Title Image" />
+      <h1>Welcome to Extratone XYZ</h1>
+      <p>This is the official website of Extratone Regeneration. Ran by Eater of Sheep.</p>
+      <p>This website is dedicated to the fastest style of music possible, Extratone.</p>
 
-	<link rel="icon" type="image/x-icon" href="pix/favicon.ico">
-	<link rel="stylesheet" href="style.css">
-	<meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>Extratone XYZ</title>
+      <h2>Links</h2>
+      <div id="links">
+        {/* Add your links here */}
+      </div>
 
-	<script src="newsfeed.js"></script>
-	<script src="friends.js"></script>
-	<script src="links.js"></script>
+      <h3>Friends</h3>
+      <div id="friends">
+        {/* Add your friends here */}
+      </div>
 
-
-</head>
-<body>
-
-	<img class = "titleimg" src="pix/xtrtn.webp"></img>
-  <h1>Welcome to Extratone XYZ</h1>
-  <p>This is the official website of Extratone Regeneration. Ran by Eater of Sheep.</p>
-  <p>This website dedicated to the fastest style of music possible, Extratone.</p>
-
-  <h2>Links</h2>
-  <div id="links">
-  </div>
-
-  <h3>Friends</h3>
-  <div id="friends">
-
-  </div>
-
-<h2>Updates</h2>
-
-  <div id="posts">
-
-  </div>
-
-</body>
-</html>
+      <h2>Updates</h2>
+      <div id="posts">
+        {/* Add your updates here */}
+      </div>
+    </div>
+  );
+}
