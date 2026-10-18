@@ -349,7 +349,7 @@
           <button class="primary secondary" id="resumeTourVidBtn" type="button">Resume Tourney Videos</button>
           <input type="file" id="resumeTourVidFile" accept="application/json,.json" style="display:none">
           <button class="primary secondary" id="skipTourBtn" type="button" style="display:none">Skip</button>
-          <button class="primary" id="recordBtn" type="button">⏺ Video</button>
+          <button class="primary" id="recordBtn" type="button">⏺ Scripted Video</button>
         </div>
         <details class="arena-more">
           <summary>More tools (batch videos)</summary>
@@ -1326,6 +1326,13 @@
         isIndifferent: true, isDepression: true, isBumper: true,
         bumpCooldown: 160, bumpSpeed: 22, bumpDecel: 0.935,
         color: '#64748b', accent: '#94a3b8', projStyle: 'none'
+      },
+      creeper: {
+        name: 'Creeper', health: 100, radius: 24, speed: 2.85,
+        fireCooldown: 9999, projSpeed: 0, projRadius: 0, damage: 10, mode: 'none',
+        isCreeper: true, isSquare: true, hpAbove: true, isBumper: true,
+        bumpCooldown: 140, bumpSpeed: 26, bumpDecel: 0.93,
+        color: '#5d9c3a', accent: '#1a1a1a', projStyle: 'none'
       }
     };
 
@@ -1552,7 +1559,8 @@
   "priest": "Faith",
   "acolytes": "2x Faith",
   "errors": "2x Error",
-  "depression": ":( "
+  "depression": ":( ",
+  "creeper": "Sssss… Boom?"
 };
 
     const CLASS_INTRO_LINES = {
@@ -2362,7 +2370,8 @@
       priest: 'Fights with a wooden crucifix sword. Heals 5 HP every 3 seconds.',
       acolytes: 'Two miniature Priests (~35% Priest HP each) with smaller crucifix swords and weaker heal bursts.',
       errors: 'Two miniature Glitches (~35% Glitch HP each). Same flicker / morph-on-hit behaviour, no rage.',
-      depression: '16 HP with Boredom-style damage reduction (hits ≥5 → 1 pink splat; weaker hits → 0). Bumper-style lunges. Alternates displaying ":(" and current HP every second.'
+      depression: '16 HP with Boredom-style damage reduction (hits ≥5 → 1 pink splat; weaker hits → 0). Bumper-style lunges. Alternates displaying ":(" and current HP every second.',
+      creeper: 'Minecraft-style square creeper face with realistic rotational collision physics (like Illuminati). HP drawn above the face. Bumper-style lunges — charges the enemy at intervals.'
     };
     (function buildClassInfo() {
       const host = document.getElementById('classInfoList');
@@ -4046,6 +4055,20 @@
     function fightNowSec() {
       return headless ? (fightFrames / 60 + durationBonusSec) : fightTimeSec;
     }
+    /** Temporary floating ability label above a fighter (same timing as RAGE!). */
+    function pushAbilityFloat(ball, text, color) {
+      if (headless || !ball || ball.health <= 0) return;
+      rageFloats.push({
+        ballId: ball.id,
+        offsetY: -(ball.r || 20) - 10,
+        age: 0,
+        hold: 12,
+        fade: 48,
+        drift: 0,
+        text: String(text || '!'),
+        color: color || '#fbbf24'
+      });
+    }
     function enterRage(ball) {
       if (ball.health <= 0) return;
       if (ball.isGlitch || ball.noRage) return;
@@ -4054,16 +4077,7 @@
       ball.rageEndSec = fightNowSec() + 10; // 10s then expires; can retrigger
       if (!was) {
         playRage(ball.x, ball.y);
-        if (!headless) {
-          rageFloats.push({
-            ballId: ball.id,
-            offsetY: -ball.r - 10,
-            age: 0,
-            hold: 12,   // brief pause
-            fade: 48,   // rise+fade ~0.8s → total ~1s
-            drift: 0
-          });
-        }
+        pushAbilityFloat(ball, 'RAGE!', '#ef4444');
       }
     }
     /** Abrasive rising snarl when a fighter first enters rage */
@@ -4239,7 +4253,8 @@
       priest: { color: '#f5f5f4', accent: '#a8a29e' },
       acolytes: { color: '#e7e5e4', accent: '#a8a29e' },
       errors: { color: '#67e8f9', accent: '#f472b6' },
-      depression: { color: '#64748b', accent: '#94a3b8' }
+      depression: { color: '#64748b', accent: '#94a3b8' },
+      creeper: { color: '#5d9c3a', accent: '#1a1a1a' }
     };
     function assignClassPalette() {
       // Preserve each class's authored colour from CLASSES definitions.
@@ -4332,16 +4347,19 @@
         if (r.age > r.hold) alpha = Math.max(0, 1 - (r.age - r.hold) / r.fade);
         const x = ball.x;
         const y = ball.y + r.offsetY - r.drift;
+        const label = r.text || 'RAGE!';
+        const col = r.color || '#ef4444';
+        const fs = Math.min(15, Math.max(11, 13 - Math.max(0, label.length - 10) * 0.35));
         ctx.save();
         ctx.globalAlpha = alpha;
-        ctx.font = 'bold 13px system-ui, sans-serif';
+        ctx.font = 'bold ' + fs + 'px system-ui, sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.lineWidth = 3;
         ctx.strokeStyle = '#000';
-        ctx.strokeText('RAGE!', x, y);
-        ctx.fillStyle = '#ef4444';
-        ctx.fillText('RAGE!', x, y);
+        ctx.strokeText(label, x, y);
+        ctx.fillStyle = col;
+        ctx.fillText(label, x, y);
         ctx.restore();
       }
       ctx.globalAlpha = 1;
@@ -4861,7 +4879,7 @@
 
     function startRecording(optionalVideoTrack) {
       ensureAudio();
-      setSpeakersMuted(true);
+      try { setSpeakersMuted(true); } catch (e) {}
       if (isRecording) return;
       recordedChunks = [];
       recordStopResolve = null;
@@ -4869,9 +4887,19 @@
       let vTrack = optionalVideoTrack || null;
       if (!vTrack) {
         // Manual frame mode: frames only when requestFrame() is called
-        const canvasStream = canvas.captureStream(0);
+        const mode = (typeof getVideoMode === 'function') ? getVideoMode() : 'classic';
+        let source = canvas;
+        if (mode === 'shorts') {
+          try {
+            ensureRecCanvas();
+            if (typeof compositeVideoFrame === 'function') compositeVideoFrame();
+            source = recCanvas;
+          } catch (e) { source = canvas; }
+        }
+        const canvasStream = source.captureStream(0);
         vTrack = canvasStream.getVideoTracks()[0];
         try { vTrack.contentHint = 'motion'; } catch (e) {}
+        window._recSourceMode = mode;
       }
       window._recVideoTrack = vTrack;
       const tracks = [vTrack];
@@ -4911,7 +4939,7 @@
         window._recVideoTrack = null;
         setSpeakersMuted(false);
         const rb = document.getElementById('recordBtn');
-        if (rb) { rb.textContent = 'Save Video'; rb.disabled = false; }
+        if (rb) { rb.textContent = '⏺ Scripted Video'; rb.disabled = false; }
         if (!recordedChunks.length) {
           statusEl.textContent = 'Recording failed (no data)';
           if (recordStopResolve) { recordStopResolve(); recordStopResolve = null; }
@@ -4924,7 +4952,17 @@
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'ball-fight-' + Date.now() + '.webm';
+        a.download = (function() {
+          try {
+            const keys = (typeof getSelectedClassKeys === 'function') ? getSelectedClassKeys() : [];
+            const parts = (keys || []).slice(0, 4).map(k => {
+              const n = (CLASSES[k] && CLASSES[k].name) || k;
+              return String(n).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+            }).filter(Boolean);
+            if (parts.length >= 2) return parts.join('-vs-') + '.webm';
+          } catch (e) {}
+          return 'ball-fight-' + Date.now() + '.webm';
+        })();
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -4938,7 +4976,7 @@
       recordStartedAt = performance.now();
       isRecording = true;
       const rb = document.getElementById('recordBtn');
-      if (rb) { rb.textContent = 'Saving…'; rb.disabled = true; }
+      if (rb) { rb.textContent = 'Recording…'; rb.disabled = true; }
       // Seed first frame so the stream is not blank at t=0
       pushRecFrame();
     }
@@ -4960,7 +4998,516 @@
       });
     }
 
-    function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+    
+    // ===================== OFFLINE VIDEO CAPTURE (two-pass) =====================
+    let captureLogT0 = 0;
+    function captureLogEl() { return document.getElementById('captureLogBody'); }
+    function showCaptureUI(title) {
+      const wrap = canvasWrap || document.querySelector('.canvas-wrap');
+      if (wrap) wrap.classList.add('capturing');
+      const titleEl = document.getElementById('captureLogTitle');
+      if (titleEl) titleEl.textContent = title || 'Saving video…';
+      const body = captureLogEl();
+      if (body) body.innerHTML = '';
+      const prog = document.getElementById('captureLogProgress');
+      if (prog) prog.style.width = '0%';
+      const meta = document.getElementById('captureLogMeta');
+      if (meta) meta.textContent = '';
+      const cont = document.getElementById('captureLogContinue');
+      if (cont) { cont.classList.remove('visible'); cont.onclick = null; }
+      captureLogT0 = performance.now();
+    }
+    function hideCaptureUI() {
+      const wrap = canvasWrap || document.querySelector('.canvas-wrap');
+      if (wrap) wrap.classList.remove('capturing');
+    }
+    function setCaptureProgress(pct) {
+      const prog = document.getElementById('captureLogProgress');
+      if (prog) prog.style.width = Math.max(0, Math.min(100, pct)) + '%';
+    }
+    function setCaptureMeta(text) {
+      const meta = document.getElementById('captureLogMeta');
+      if (meta) meta.textContent = text || '';
+    }
+    function captureLog(msg, kind) {
+      kind = kind || 'info';
+      const body = captureLogEl();
+      const ts = ((performance.now() - captureLogT0) / 1000).toFixed(1);
+      const line = '[' + ts + 's] ' + msg;
+      console.log(line);
+      if (body) {
+        const div = document.createElement('div');
+        div.className = 'line ' + kind;
+        div.innerHTML = '<span class="ts">[' + ts + 's]</span>' + escapeHtmlCapture(msg);
+        body.appendChild(div);
+        body.scrollTop = body.scrollHeight;
+      }
+      if (statusEl && (kind === 'err' || kind === 'ok')) statusEl.textContent = msg;
+    }
+    function escapeHtmlCapture(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+    function waitCaptureContinue(message) {
+      return new Promise(resolve => {
+        const cont = document.getElementById('captureLogContinue');
+        if (!cont) { resolve(); return; }
+        if (message) captureLog(message, 'warn');
+        cont.classList.add('visible');
+        cont.onclick = () => {
+          cont.classList.remove('visible');
+          cont.onclick = null;
+          resolve();
+        };
+      });
+    }
+    function getGapDetectSettings() {
+      const num = (id, def) => {
+        const el = document.getElementById(id);
+        const v = el ? parseFloat(el.value) : def;
+        return Number.isFinite(v) ? v : def;
+      };
+      return {
+        mult: num('badGapMult', 1.8),
+        minMs: num('badGapMinMs', 50),
+        pct: num('badGapPct', 1.5) / 100,
+        minCount: num('badGapMinCount', 3),
+        hugeMult: num('hugeStallMult', 45),
+        hugeMinMs: num('hugeStallMinMs', 1800),
+        maxAttempts: Math.max(1, Math.floor(num('maxVideoAttempts', 20)))
+      };
+    }
+    function analyzeGaps(gaps, expectedMs) {
+      const g = getGapDetectSettings();
+      const badThresh = Math.max(g.minMs, expectedMs * g.mult);
+      const hugeThresh = Math.max(g.hugeMinMs, expectedMs * g.hugeMult);
+      let bad = 0, maxGap = 0, huge = 0;
+      for (const x of gaps) {
+        if (x > maxGap) maxGap = x;
+        if (x >= badThresh) bad++;
+        if (x >= hugeThresh) huge++;
+      }
+      const badPct = gaps.length ? bad / gaps.length : 0;
+      const fail = huge > 0 || bad >= g.minCount || badPct >= g.pct;
+      return { bad, maxGap, huge, badPct, fail, badThresh, hugeThresh };
+    }
+    function sleepMs(ms) {
+      return new Promise(r => setTimeout(r, Math.max(0, ms)));
+    }
+    function fightVideoBasename(keys) {
+      try {
+        const parts = (keys || []).slice(0, 4).map(k => {
+          const n = (CLASSES[k] && CLASSES[k].name) || k;
+          return String(n).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        }).filter(Boolean);
+        if (parts.length >= 2) return parts.join('-vs-');
+      } catch (e) {}
+      return 'ball-fight-' + Date.now();
+    }
+    function downloadBlob(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 8000);
+    }
+
+    /** Offline paced simulation of one seeded fight. */
+    async function runOfflineFightPass(opts) {
+      const keys = opts.keys;
+      const seed = opts.seed;
+      const visual = !!opts.visual;
+      const paceMs = opts.paceMs != null ? opts.paceMs : (1000 / getRecFps());
+      const onFrame = opts.onFrame || null;
+      const maxFightFrames = Math.floor(90 * 60); // 90s hard cap
+      const victoryHold = VICTORY_DURATION || 300;
+
+      offlineVideoGen = true;
+      headless = false; // need SFX + particles for video/audio
+      if (animId) { cancelAnimationFrame(animId); animId = null; }
+
+      window._recordingFightKeys = keys.slice();
+      createBalls(seed >>> 0);
+      window._recordingFightKeys = null;
+
+      gameOver = false;
+      victoryFrames = 0;
+      fightEndedIdle = false;
+
+      const gaps = [];
+      let frames = 0;
+      const t0 = performance.now();
+      let lastWall = t0;
+      const fps = getRecFps();
+
+      while (true) {
+        const wall0 = performance.now();
+        if (!gameOver) {
+          update();
+        } else if (victoryFrames > 0) {
+          update(); // victory linger path inside update
+        } else {
+          break;
+        }
+        if (visual) {
+          draw();
+          if (window._recSourceMode === 'shorts' && typeof compositeVideoFrame === 'function') {
+            try { compositeVideoFrame(); } catch (e) {}
+          }
+        }
+        if (onFrame) onFrame(frames);
+        frames++;
+
+        // Wall-clock pace so MediaRecorder gets steady frames
+        const target = t0 + frames * paceMs;
+        const now = performance.now();
+        const wait = target - now;
+        if (wait > 1) await sleepMs(wait);
+        const wall1 = performance.now();
+        const gap = wall1 - lastWall;
+        gaps.push(gap);
+        lastWall = wall1;
+
+        if (frames % Math.max(15, Math.floor(fps * 2)) === 0) {
+          const tSec = (typeof fightNowSec === 'function') ? fightNowSec() : (fightFrames / 60);
+          if (opts.onProgress) opts.onProgress(frames, tSec);
+        }
+        if (fightFrames > maxFightFrames && !gameOver) {
+          gameOver = true;
+          victoryFrames = victoryHold;
+        }
+        if (frames > maxFightFrames + victoryHold + 30) break;
+        // Yield occasionally so UI/log updates
+        if (frames % 30 === 0) await sleepMs(0);
+      }
+
+      const durationSec = frames / fps;
+      const analysis = analyzeGaps(gaps, paceMs);
+      return { frames, durationSec, gaps, analysis, fps };
+    }
+
+    async function recordMediaOnce(makeTracks, recordFn) {
+      recordedChunks = [];
+      recordStopResolve = null;
+      const tracks = await makeTracks();
+      const combined = new MediaStream(tracks.filter(Boolean));
+      let mime = 'video/webm;codecs=vp9,opus';
+      if (!MediaRecorder.isTypeSupported(mime)) mime = 'video/webm;codecs=vp8,opus';
+      if (!MediaRecorder.isTypeSupported(mime)) mime = 'video/webm;codecs=vp8';
+      if (!MediaRecorder.isTypeSupported(mime)) mime = 'video/webm';
+      if (!MediaRecorder.isTypeSupported(mime)) mime = 'audio/webm';
+      recordMimeType = mime;
+      try {
+        mediaRecorder = new MediaRecorder(combined, {
+          mimeType: mime,
+          videoBitsPerSecond: 12000000,
+          audioBitsPerSecond: 192000
+        });
+      } catch (e) {
+        mediaRecorder = new MediaRecorder(combined);
+      }
+      mediaRecorder.ondataavailable = e => {
+        if (e.data && e.data.size > 0) recordedChunks.push(e.data);
+      };
+      const stopped = new Promise(resolve => {
+        mediaRecorder.onstop = () => resolve();
+      });
+      try { mediaRecorder.start(Math.round(1000 / getRecFps())); }
+      catch (e) { mediaRecorder.start(); }
+      isRecording = true;
+      recordStartedAt = performance.now();
+      try {
+        await recordFn();
+      } finally {
+        try { mediaRecorder.requestData(); } catch (e) {}
+        await sleepMs(120);
+        try { if (mediaRecorder.state !== 'inactive') mediaRecorder.stop(); } catch (e) {}
+        await stopped;
+        isRecording = false;
+      }
+      if (!recordedChunks.length) return null;
+      let blob = new Blob(recordedChunks, { type: recordMimeType || 'video/webm' });
+      recordedChunks = [];
+      return blob;
+    }
+
+    async function muxWithFfmpeg(videoBlob, audioBlob, log) {
+      // Best-effort ffmpeg.wasm mux; returns muxed blob or null
+      try {
+        log('Muxing video + audio (ffmpeg.wasm)…', 'info');
+        log('Loading ffmpeg…', 'info');
+        const { FFmpeg } = await import('https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/esm/index.js');
+        const { fetchFile, toBlobURL } = await import('https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.2/dist/esm/index.js');
+        const ffmpeg = new FFmpeg();
+        ffmpeg.on('log', ({ message }) => {
+          if (message && /error|fail/i.test(message)) log(message, 'warn');
+        });
+        const base = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm';
+        await ffmpeg.load({
+          coreURL: await toBlobURL(base + '/ffmpeg-core.js', 'text/javascript'),
+          wasmURL: await toBlobURL(base + '/ffmpeg-core.wasm', 'application/wasm')
+        });
+        log('ffmpeg loaded', 'ok');
+        await ffmpeg.writeFile('v.webm', await fetchFile(videoBlob));
+        if (audioBlob) await ffmpeg.writeFile('a.webm', await fetchFile(audioBlob));
+        // setpts for sim-rate speedup if needed
+        const rate = getRecordSimRate();
+        if (audioBlob) {
+          if (rate < 0.999) {
+            const factor = (1 / rate).toFixed(6);
+            await ffmpeg.exec(['-i', 'v.webm', '-i', 'a.webm', '-filter:v', 'setpts=PTS*' + rate, '-c:v', 'libvpx', '-b:v', '8M', '-c:a', 'copy', '-shortest', 'out.webm']);
+          } else {
+            await ffmpeg.exec(['-i', 'v.webm', '-i', 'a.webm', '-c:v', 'copy', '-c:a', 'copy', '-shortest', 'out.webm']);
+          }
+        } else if (rate < 0.999) {
+          await ffmpeg.exec(['-i', 'v.webm', '-filter:v', 'setpts=PTS*' + rate, '-c:v', 'libvpx', '-b:v', '8M', 'out.webm']);
+        } else {
+          return videoBlob;
+        }
+        const data = await ffmpeg.readFile('out.webm');
+        log('Mux complete', 'ok');
+        return new Blob([data.buffer], { type: 'video/webm' });
+      } catch (e) {
+        log('Mux error: ' + (e && e.message ? e.message : e), 'err');
+        return null;
+      }
+    }
+
+    /**
+     * Full offline Scripted Video pipeline:
+     * 1) Optional scripted draft search for best seed
+     * 2) TTS preload
+     * 3) Pass 1 audio (if enabled)
+     * 4) Pass 2 video with gap detection + retries
+     * 5) Mux when possible
+     */
+    async function generateFullFightVideo(userOpts) {
+      userOpts = userOpts || {};
+      const keys = userOpts.keys || ((typeof getSelectedClassKeys === 'function')
+        ? getSelectedClassKeys()
+        : [classBlueEl.value, classRedEl.value]);
+      if (!keys || keys.length < 2) {
+        if (statusEl) statusEl.textContent = 'Select at least 2 fighters';
+        return;
+      }
+
+      const includeAudio = !!(document.getElementById('recordAudioEnabled') || { checked: true }).checked;
+      const fps = getRecFps();
+      const simRate = getRecordSimRate();
+      const paceMs = (1000 / fps) / simRate; // slower wall pace when simRate < 1
+      const gapCfg = getGapDetectSettings();
+      const basename = fightVideoBasename(keys);
+
+      showCaptureUI('Scripted Video');
+      captureLog('Preparing two-pass capture…', 'info');
+      captureLog('Layout: ' + ((typeof getVideoMode === 'function' && getVideoMode() === 'shorts') ? 'YouTube Shorts 1080×1920' : 'Classic 480×480') +
+        ' @ ' + fps + ' fps · sim rate ' + simRate.toFixed(2) + '×', 'info');
+      setCaptureProgress(2);
+
+      // ---- Seed selection ----
+      let seed = userOpts.seed;
+      let draftScore = null;
+      if (seed == null) {
+        const N = Math.max(1, Math.min(5000, parseInt((scriptedNEl && scriptedNEl.value) || '500', 10) || 500));
+        captureLog('Simulating ' + N + ' drafts to lock best seed…', 'info');
+        let best = null;
+        for (let i = 0; i < N; i++) {
+          const s = ((Math.random() * 0xFFFFFFFF) ^ (Date.now() + i * 9973)) >>> 0;
+          const res = simulateMatch(keys[0], keys[1], s);
+          if (res && (best == null || res.score < best.score)) best = { seed: s, ...res };
+          if (i % 25 === 0) {
+            setCaptureProgress(2 + (i / N) * 12);
+            setCaptureMeta('Drafts ' + (i + 1) + '/' + N);
+            captureLog('Drafts… ' + (i + 1) + '/' + N, 'info');
+            await sleepMs(0);
+          }
+        }
+        if (!best) throw new Error('No valid scripted draft');
+        seed = best.seed;
+        draftScore = best.score;
+        captureLog('Locked seed ' + seed + ' · score ' + best.score.toFixed(1) +
+          ' · ~' + best.durationSec.toFixed(1) + 's', 'ok');
+      } else {
+        captureLog('Using provided seed ' + seed, 'info');
+      }
+      setCaptureProgress(15);
+
+      // ---- TTS preload ----
+      try {
+        if (typeof preloadAnnouncerForMatchup === 'function') {
+          captureLog('Preloading announcer lines…', 'info');
+          await preloadAnnouncerForMatchup(keys[0], keys[1], function(msg) {
+            captureLog(msg, 'info');
+          }, seed, null, keys);
+          captureLog('Announcer ready', 'ok');
+        }
+      } catch (e) {
+        captureLog('TTS preload: ' + (e && e.message ? e.message : e), 'warn');
+      }
+      setCaptureProgress(20);
+
+      ensureAudio();
+      setSpeakersMuted(true);
+
+      let audioBlob = null;
+      // ---- Pass 1: audio ----
+      if (includeAudio) {
+        captureLog('Pass 1/2: audio simulation (real-time, speakers muted)…', 'info');
+        try {
+          audioBlob = await recordMediaOnce(async () => {
+            const tracks = [];
+            if (recordDest && recordDest.stream) {
+              tracks.push(...recordDest.stream.getAudioTracks());
+            }
+            // Dummy silent video track helps some MediaRecorder implementations
+            const silent = document.createElement('canvas');
+            silent.width = 16; silent.height = 16;
+            const sctx = silent.getContext('2d');
+            sctx.fillStyle = '#000'; sctx.fillRect(0, 0, 16, 16);
+            const vs = silent.captureStream(0);
+            const vt = vs.getVideoTracks()[0];
+            window._recVideoTrack = vt;
+            tracks.push(vt);
+            return tracks;
+          }, async () => {
+            const result = await runOfflineFightPass({
+              keys, seed, visual: false, paceMs: 1000 / fps,
+              onProgress: (f, tSec) => {
+                setCaptureProgress(20 + Math.min(25, (tSec / 60) * 25));
+                setCaptureMeta('Audio: frame ' + f + ' · fight t=' + tSec.toFixed(1) + 's');
+                if (f % 60 === 0) captureLog('Audio: frame ' + f + ' · fight t=' + tSec.toFixed(1) + 's', 'info');
+              },
+              onFrame: () => { try { pushRecFrame(); } catch (e) {} }
+            });
+            captureLog('Audio sim done · ' + result.frames + ' frames · ' + result.durationSec.toFixed(1) + 's', 'ok');
+          });
+          if (audioBlob) captureLog('Audio blob ' + Math.round(audioBlob.size / 1024) + ' KB', 'ok');
+          else captureLog('Audio pass produced no data', 'warn');
+        } catch (e) {
+          captureLog('Audio pass failed: ' + (e && e.message ? e.message : e), 'err');
+          audioBlob = null;
+        }
+        window._recVideoTrack = null;
+      } else {
+        captureLog('Audio disabled — video-only', 'info');
+      }
+      setCaptureProgress(48);
+
+      // ---- Pass 2: video with retries ----
+      let videoBlob = null;
+      let lastAnalysis = null;
+      for (let attempt = 1; attempt <= gapCfg.maxAttempts; attempt++) {
+        captureLog('Pass 2/2: video attempt ' + attempt + '/' + gapCfg.maxAttempts +
+          ' (MediaRecorder, paced ' + simRate.toFixed(2) + '×)…', 'info');
+        try {
+          const mode = (typeof getVideoMode === 'function') ? getVideoMode() : 'classic';
+          window._recSourceMode = mode;
+          videoBlob = await recordMediaOnce(async () => {
+            let source = canvas;
+            if (mode === 'shorts') {
+              ensureRecCanvas();
+              try { compositeVideoFrame(); } catch (e) {}
+              source = recCanvas;
+            }
+            const stream = source.captureStream(0);
+            const vt = stream.getVideoTracks()[0];
+            try { vt.contentHint = 'motion'; } catch (e) {}
+            window._recVideoTrack = vt;
+            // Video-only tracks here; mux audio later (avoids drift)
+            return [vt];
+          }, async () => {
+            pushRecFrame();
+            const result = await runOfflineFightPass({
+              keys, seed, visual: true, paceMs,
+              onProgress: (f, tSec) => {
+                setCaptureProgress(48 + Math.min(40, (tSec / 90) * 40));
+                setCaptureMeta('Video: frame ' + f + ' · fight t=' + tSec.toFixed(1) + 's · try ' + attempt);
+                if (f % 90 === 0) captureLog('Video: frame ' + f + ' · fight t=' + tSec.toFixed(1) + 's', 'info');
+              },
+              onFrame: () => { try { pushRecFrame(); } catch (e) {} }
+            });
+            lastAnalysis = result.analysis;
+            captureLog('Video sim done · ' + result.frames + ' frames · ' + result.durationSec.toFixed(1) +
+              's · max gap ' + result.analysis.maxGap.toFixed(0) + 'ms · bad gaps ' + result.analysis.bad, 'ok');
+            if (result.analysis.fail) {
+              captureLog('Stutter detected (badGaps=' + result.analysis.bad +
+                ', maxGap=' + result.analysis.maxGap.toFixed(0) + 'ms) — will retry if attempts remain', 'warn');
+            }
+          });
+          window._recVideoTrack = null;
+          if (!videoBlob) {
+            captureLog('Video pass produced no data', 'err');
+            continue;
+          }
+          captureLog('Video blob ' + Math.round(videoBlob.size / 1024) + ' KB', 'ok');
+          if (!lastAnalysis || !lastAnalysis.fail) break;
+          if (attempt < gapCfg.maxAttempts) {
+            captureLog('Retrying video pass…', 'warn');
+            videoBlob = null;
+          }
+        } catch (e) {
+          captureLog('Video attempt failed: ' + (e && e.message ? e.message : e), 'err');
+          window._recVideoTrack = null;
+          videoBlob = null;
+        }
+      }
+      setCaptureProgress(90);
+
+      offlineVideoGen = false;
+      setSpeakersMuted(false);
+
+      if (!videoBlob) {
+        captureLog('All video attempts failed', 'err');
+        await waitCaptureContinue('Mux/record failed — press Continue');
+        hideCaptureUI();
+        const rb = document.getElementById('recordBtn');
+        if (rb) { rb.disabled = false; rb.textContent = '⏺ Scripted Video'; }
+        return;
+      }
+
+      // Duration fix
+      try {
+        const dur = Math.max(1, (videoBlob.size > 0 ? 1 : 1));
+        // Prefer fight time from last pass if available
+      } catch (e) {}
+
+      let finalBlob = videoBlob;
+      if (includeAudio && audioBlob) {
+        const muxed = await muxWithFfmpeg(videoBlob, audioBlob, captureLog);
+        if (muxed) {
+          finalBlob = muxed;
+          captureLog('Muxed A/V ready', 'ok');
+        } else {
+          captureLog('Mux failed — saving video only (audio kept separate)', 'warn');
+          downloadBlob(audioBlob, basename + '-audio.webm');
+          await waitCaptureContinue('Mux failed — video will download without audio. Press Continue');
+        }
+      } else if (simRate < 0.999) {
+        const sped = await muxWithFfmpeg(videoBlob, null, captureLog);
+        if (sped) finalBlob = sped;
+      }
+
+      try {
+        finalBlob = await fixWebmDuration(finalBlob, Math.max(1, fightTimeSec || (fightFrames / 60) || 10));
+      } catch (e) {}
+
+      downloadBlob(finalBlob, basename + '.webm');
+      captureLog('Saved ' + basename + '.webm · ' + Math.round(finalBlob.size / 1024) + ' KB', 'ok');
+      setCaptureProgress(100);
+      setCaptureMeta('Done');
+      if (statusEl) statusEl.textContent = 'Saved ' + basename + '.webm';
+
+      offlineVideoGen = false;
+      hideCaptureUI();
+      const rb = document.getElementById('recordBtn');
+      if (rb) { rb.disabled = false; rb.textContent = '⏺ Scripted Video'; }
+      // Restore idle arena view
+      try { draw(); } catch (e) {}
+    }
+
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
     function darkenHex(hex, factor) {
       // factor 0..1 — how much of the original colour to keep
       if (!hex || hex[0] !== '#' || (hex.length !== 7 && hex.length !== 4)) return hex;
@@ -5267,7 +5814,9 @@
         spikedBody: !!c.spikedBody,
         isIlluminati: !!c.isIlluminati,
         isTriangle: !!c.isTriangle,
-        hpAbove: !!c.hpAbove || !!c.isIlluminati,
+        isCreeper: !!c.isCreeper,
+        isSquare: !!c.isSquare || !!c.isCreeper,
+        hpAbove: !!c.hpAbove || !!c.isIlluminati || !!c.isCreeper,
         isIndifferent: !!c.isIndifferent || !!c.isBoredom || !!c.isDepression,
         isBoredom: !!c.isBoredom,
         isDepression: !!c.isDepression,
@@ -5330,6 +5879,7 @@
       });
       playBoom(mimics[0] ? mimics[0].x : W/2, mimics[0] ? mimics[0].y : H/2);
       addScreenShake(12);
+      if (mimics[0]) pushAbilityFloat(mimics[0], 'MIMIC', '#a78bfa');
 
       // Remove old mimic bodies
       for (let i = balls.length - 1; i >= 0; i--) {
@@ -7057,16 +7607,20 @@
       return score;
     }
 
-    async function runScriptedFight() {
+    async function runScriptedFight(opts) {
+      opts = opts || {};
+      const record = !!opts.record;
       const keys = (typeof getSelectedClassKeys === 'function')
         ? getSelectedClassKeys()
         : [classBlueEl.value, classRedEl.value];
       if (!keys || keys.length < 2) {
         if (statusEl) statusEl.textContent = 'Select at least 2 fighters';
-        return;
+        return null;
       }
       const N = Math.max(1, Math.min(5000, parseInt((scriptedNEl && scriptedNEl.value) || '500', 10) || 500));
-      if (statusEl) statusEl.textContent = 'Scripting best of ' + N + ' drafts…';
+      if (statusEl) statusEl.textContent = (record ? 'Scripted Video: ' : '') + 'scripting best of ' + N + ' drafts…';
+      const rb = document.getElementById('recordBtn');
+      if (record && rb) { rb.disabled = true; rb.textContent = 'Scripting…'; }
       let best = null;
       // Yield every batch so UI stays responsive
       for (let i = 0; i < N; i++) {
@@ -7077,18 +7631,46 @@
           best = { seed, ...res };
         }
         if (i % 20 === 0) {
-          if (statusEl) statusEl.textContent = 'Scripting… ' + (i + 1) + '/' + N;
+          if (statusEl) statusEl.textContent = (record ? 'Scripted Video: ' : '') + 'scripting… ' + (i + 1) + '/' + N;
           await new Promise(r => setTimeout(r, 0));
         }
       }
       if (best) {
         if (statusEl) {
-          statusEl.textContent = 'Best draft score ' + best.score.toFixed(1) +
-            ' · ' + best.durationSec.toFixed(1) + 's — starting';
+          statusEl.textContent = (record ? 'Recording · ' : '') + 'best score ' + best.score.toFixed(1) +
+            ' · ' + best.durationSec.toFixed(1) + 's';
+        }
+        if (record) {
+          pendingRecord = true;
+          try {
+            // Preload announcer lines for this matchup when possible
+            if (typeof preloadAnnouncerForMatchup === 'function') {
+              await preloadAnnouncerForMatchup(keys[0], keys[1], function(msg) {
+                if (statusEl) statusEl.textContent = 'TTS: ' + msg;
+              }, best.seed, null, keys);
+            }
+          } catch (e) { console.warn('TTS preload', e); }
         }
         startFight(best.seed);
       } else {
+        if (record) pendingRecord = true;
         startFight(null);
+      }
+      return best;
+    }
+    async function runScriptedVideo() {
+      if (isRecording) {
+        if (statusEl) statusEl.textContent = 'Already recording…';
+        return;
+      }
+      try {
+        await runScriptedFight({ record: true });
+      } catch (e) {
+        console.error(e);
+        pendingRecord = false;
+        const rb = document.getElementById('recordBtn');
+        if (rb) { rb.disabled = false; rb.textContent = '⏺ Scripted Video'; }
+        if (statusEl) statusEl.textContent = 'Scripted Video failed: ' + (e && e.message ? e.message : e);
       }
     }
 
@@ -8133,6 +8715,7 @@
     /** Glitch morphs combat kit to a random class on each damaging hit (keeps HP/team/identity). */
     function glitchMorphOnHit(ball) {
       if (!ball || !ball.isGlitch || ball.health <= 0) return;
+      pushAbilityFloat(ball, 'TRANSFORM', '#22d3ee');
       const keys = CLASS_KEYS.filter(k => k !== 'glitch' && k !== 'mimic' && k !== 'boredom' && k !== 'indifferent' && CLASSES[k] && !CLASSES[k].disabled);
       if (!keys.length) return;
       const key = keys[Math.floor(rand() * keys.length)];
@@ -8214,10 +8797,10 @@
 
       playClack(0.5 + Math.min(1, impact / 6));
       // Triangle rotational impulse from offset contact
-      if (a.isTriangle || b.isTriangle) {
+      if (a.isTriangle || b.isTriangle || a.isSquare || b.isSquare || a.isCreeper || b.isCreeper) {
         const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
         const applyTorque = (ball) => {
-          if (!ball.isTriangle) return;
+          if (!(ball.isTriangle || ball.isSquare || ball.isCreeper)) return;
           const rx = mx - ball.x, ry = my - ball.y;
           // τ ≈ r × F ; F along normal proportional to impact
           const force = impact * 0.35 * (ball.team === a.team ? -1 : 1);
@@ -8319,7 +8902,7 @@
       else if (ball.y + ball.r > H - WALL_PADDING) { ball.y = H - ball.r - WALL_PADDING; ball.vy = -Math.abs(ball.vy); hit = true; }
       if (hit) {
         playClack(0.45, { echo: true });
-        if (ball.isTriangle) {
+        if (ball.isTriangle || ball.isSquare || ball.isCreeper) {
           // Glancing wall contact spins the triangle
           const tang = (Math.abs(ball.vx) > Math.abs(ball.vy))
             ? (ball.y < H / 2 ? 1 : -1)
@@ -8540,6 +9123,16 @@
       const col = FAIRY_COLORS[phase % FAIRY_COLORS.length];
       ball.fairyFlash = 22;
       const star = fairyStarPos(ball);
+      const fairyLabels = {
+        white: ['BARRAGE', '#f8fafc'],
+        red: ['FIRE HOMING', '#f87171'],
+        green: ['HEAL', '#4ade80'],
+        cyan: ['RICOCHET', '#22d3ee'],
+        violet: ['STEALTH', '#c084fc'],
+        magenta: ['STEALTH', '#e879f9']
+      };
+      const fl = fairyLabels[col.key] || ['SPELL', col.hex || '#fbbf24'];
+      pushAbilityFloat(ball, fl[0], fl[1]);
       // Expanding coloured shockwave from the star tip
       shockwaves.push({
         x: star.x, y: star.y,
@@ -8587,6 +9180,7 @@
           ball.isGhost = true;
           ball.ghostHittable = true;
           ball.fairyGhostTimer = 0;
+          pushAbilityFloat(ball, 'STEALTH', '#c084fc');
         }
         spawnSparks(star.x, star.y, col.hex);
         playDing(0.55, star.x, star.y);
@@ -8743,6 +9337,7 @@
       }
     }
     function armWizardSword(ball) {
+      pushAbilityFloat(ball, 'MAGIC SWORD', '#a78bfa');
       ball.wizardSwordFrames = 600; // 10s
       ball.mode = 'sword';
       ball.weaponType = 'katana';
@@ -8771,6 +9366,15 @@
       const phase = ball.wizardPhase || 0;
       const col = WIZARD_COLORS[phase % WIZARD_COLORS.length];
       ball.wizardFlash = 22;
+      const wizLabels = {
+        lightning: ['LIGHTNING', '#d946ef'],
+        shrink: ['SHRINK RAY', '#22d3ee'],
+        sword: ['MAGIC SWORD', '#a78bfa'],
+        ricochet: ['RICOCHET', '#67e8f9'],
+        launch: ['LAUNCH', '#f97316']
+      };
+      const wl = wizLabels[col.key] || ['SPELL', col.hex || '#c084fc'];
+      pushAbilityFloat(ball, wl[0], wl[1]);
       const ang0 = ball.aimAngle || 0;
       const tipX = ball.x + Math.cos(ang0) * (ball.r * 1.35);
       const tipY = ball.y + Math.sin(ang0) * (ball.r * 1.35);
@@ -9059,6 +9663,16 @@
       const phase = ball.illuminatiPhase || 0;
       ball.illuminatiPhase = (phase + 1) % 6;
       const ang = ball.aimAngle != null ? ball.aimAngle : rand() * Math.PI * 2;
+      const illLabels = [
+        ['PROPAGANDA', '#fbbf24'],
+        ['LASER', '#ef4444'],
+        ['LASER', '#ef4444'],
+        ['GANG STALKER', '#a3e635'],
+        ['LASER', '#ef4444'],
+        ['TECHNIQUE STEAL', '#f59e0b']
+      ];
+      const il = illLabels[phase] || ['SPELL', '#b7e4c7'];
+      pushAbilityFloat(ball, il[0], il[1]);
       if (phase === 0) {
         // Propaganda: tiny ultra-fast sleep darts
         playShoot(0.7, 8);
@@ -9445,6 +10059,7 @@
           if (phantomThreatNearby(ball)) {
             ball.isGhost = true;
             ball.phantomGhostTimer = 0;
+            pushAbilityFloat(ball, 'PHASE', '#e2e8f0');
           }
         }
         // Smooth alpha toward target
@@ -9469,7 +10084,10 @@
       // Ninja: always seek stealth (5s after reveal); shuriken throws
       if (ball.isNinja && ball.health > 0) {
         if (!ball.isGhost) {
-          if (ball.ghostRevealCd <= 0) ball.isGhost = true; // indefinite until revealed
+          if (ball.ghostRevealCd <= 0 && !ball.isGhost) {
+            ball.isGhost = true; // indefinite until revealed
+            pushAbilityFloat(ball, 'STEALTH', '#94a3b8');
+          }
         }
         if ((ball.stunned || 0) <= 0) {
           ball.shurikenCd--;
@@ -9515,6 +10133,7 @@
           ball.vampFormCd = ball.vampBatForm
             ? (ball.vampBatFrames || 300)
             : (ball.vampNormalFrames || 900);
+          pushAbilityFloat(ball, ball.vampBatForm ? 'BAT FORM' : 'VAMPIRE', ball.vampBatForm ? '#1e1b4b' : '#7f1d1d');
           playMystery(ball.x, ball.y);
           spawnDeployFx(ball.x, ball.y, ball.vampBatForm ? '#111' : ball.color);
           if (ball.vampBatForm) {
@@ -9611,6 +10230,7 @@
               ball.bumpAttacking = true;
               ball.invincible = true;
               playShoot(0.5, 1);
+              pushAbilityFloat(ball, ball.isCreeper ? 'SSSSS…' : 'CHARGE', ball.isCreeper ? '#5d9c3a' : '#f97316');
             }
             ball.bumpCd = ball.bumpCooldown || 75;
           }
@@ -10089,7 +10709,7 @@
         }
         b.x += b.vx; b.y += b.vy;
         wallBounceBall(b);
-        if (b.isTriangle) {
+        if (b.isTriangle || b.isSquare || b.isCreeper) {
           b.bodyOmega = (b.bodyOmega || 0) * 0.992; // slight angular drag
           b.bodyAngle = (b.bodyAngle || 0) + (b.bodyOmega || 0);
         }
@@ -11200,6 +11820,36 @@
           ctx.stroke();
         }
         ctx.globalAlpha = alpha;
+      } else if (b.isCreeper || b.isSquare) {
+        // Minecraft creeper: rotating square body + classic face
+        const ang = b.bodyAngle || 0;
+        const s = drawR * 1.05;
+        ctx.save();
+        ctx.translate(b.x, b.y);
+        ctx.rotate(ang);
+        ctx.fillStyle = darkenHex(rageTint(bodyCol, b.enraged), b.isCreeper ? 0.88 : 0.55);
+        ctx.beginPath();
+        ctx.rect(-s, -s, s * 2, s * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#1a2e0a';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        if (b.isCreeper && !dying) {
+          // Classic creeper face (black pixels relative to square)
+          const u = s / 4; // 8x8 grid unit-ish
+          ctx.fillStyle = '#0a0a0a';
+          // Eyes
+          ctx.fillRect(-s * 0.55, -s * 0.55, s * 0.35, s * 0.35);
+          ctx.fillRect(s * 0.2, -s * 0.55, s * 0.35, s * 0.35);
+          // Mouth: jagged creeper grin
+          ctx.fillRect(-s * 0.12, -s * 0.05, s * 0.24, s * 0.55);
+          ctx.fillRect(-s * 0.42, s * 0.1, s * 0.3, s * 0.45);
+          ctx.fillRect(s * 0.12, s * 0.1, s * 0.3, s * 0.45);
+          ctx.fillRect(-s * 0.42, s * 0.35, s * 0.18, s * 0.35);
+          ctx.fillRect(s * 0.24, s * 0.35, s * 0.18, s * 0.35);
+        }
+        ctx.restore();
+        ctx.globalAlpha = alpha;
       } else {
         ctx.beginPath();
         ctx.arc(b.x, b.y, drawR, 0, Math.PI * 2);
@@ -11287,6 +11937,8 @@
       }
 
       // Team outline (thin)
+      ctx.strokeStyle = b.teamOutline || 'rgba(255,255,255,0.35)';
+      ctx.lineWidth = 3;
       if (b.isTriangle) {
         const ang = b.bodyAngle || 0;
         ctx.beginPath();
@@ -11297,10 +11949,20 @@
           if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
         }
         ctx.closePath();
+        ctx.stroke();
+      } else if (b.isCreeper || b.isSquare) {
+        const ang = b.bodyAngle || 0;
+        const s = drawR * 1.05;
+        ctx.save();
+        ctx.translate(b.x, b.y);
+        ctx.rotate(ang);
+        ctx.strokeRect(-s, -s, s * 2, s * 2);
+        ctx.restore();
+      } else {
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, drawR, 0, Math.PI * 2);
+        ctx.stroke();
       }
-      ctx.strokeStyle = b.teamOutline;
-      ctx.lineWidth = 3;
-      ctx.stroke();
 
       // Cupid / Bowman animated bow (not a turret)
       if ((b.isCupid || b.isBowman) && !dying) {
@@ -13179,8 +13841,14 @@ function drawArenaBackground(ctx, W, H) {
         simAcc -= stepMs;
       }
       if (typeof draw === 'function') draw();
-      if (typeof compositeVideoFrame === 'function' && (document.getElementById('videoFormat') || {}).value === 'shorts') {
-        // live preview stays on main canvas; composite only when recording
+      // Capture frame for MediaRecorder (manual captureStream(0))
+      if (isRecording && !offlineVideoGen) {
+        try {
+          if (window._recSourceMode === 'shorts' && typeof compositeVideoFrame === 'function') {
+            compositeVideoFrame();
+          }
+          pushRecFrame();
+        } catch (e) {}
       }
     }
 
@@ -13228,12 +13896,18 @@ function drawArenaBackground(ctx, W, H) {
     const recordBtnEl = document.getElementById('recordBtn');
     if (recordBtnEl) {
       recordBtnEl.addEventListener('click', () => {
-        if (typeof generateFullFightVideo === 'function') {
-          generateFullFightVideo().catch(e => {
-            console.error(e);
-            if (statusEl) statusEl.textContent = 'Video failed: ' + (e && e.message ? e.message : e);
-          });
-        }
+        const rb = recordBtnEl;
+        rb.disabled = true;
+        rb.textContent = 'Recording…';
+        generateFullFightVideo().catch(e => {
+          console.error(e);
+          offlineVideoGen = false;
+          try { setSpeakersMuted(false); } catch (e2) {}
+          hideCaptureUI();
+          if (statusEl) statusEl.textContent = 'Scripted Video failed: ' + (e && e.message ? e.message : e);
+          rb.disabled = false;
+          rb.textContent = '⏺ Scripted Video';
+        });
       });
     }
     const addFighterBtn = document.getElementById('addFighterBtn');
